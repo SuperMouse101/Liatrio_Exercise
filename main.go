@@ -13,9 +13,8 @@ func main() {
     // Define a route for the GET method on the root path '/'
     app.Get("/", func(c fiber.Ctx) error {
         // Send a string response to the client
-        r := time.Now().UTC().GoString();
-        r += "\nHello, World 👋!";
-        return c.SendString(r)
+        r := time.Now().Unix();
+        return c.JSON(r)
     })
 
     // Start the server on port 3000
