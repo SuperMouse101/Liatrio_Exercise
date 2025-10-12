@@ -20,7 +20,7 @@ func main() {
         // Send a json response to the client
         r := Responce {
             Message: "My name is Liam Lassonde",
-            Timestamp: time.Now().Unix(),
+            Timestamp: time.Now().UnixMilli(),
         }
         return c.JSON(r)
     })
