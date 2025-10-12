@@ -28,7 +28,19 @@ jobs:
     - name: Run container on port 80
       run: |
         docker rm -f app 2>/dev/null || true
-        docker run -d --name app -p 80:80 web_app:check    
+        docker run -d --name app -p 80:80 web_app:check
+
+    - name: Wait for app to be ready on port 80
+      run: |
+        for i in {1..60}; do
+          if curl -fsS http://localhost:80/ >/dev/null; then
+            echo "App is up"; exit 0
+          fi
+          sleep 1
+        done
+        echo "App did not become ready in time" >&2
+        docker logs app || true
+        exit 1
 
     - name: Run Tests
       uses: liatrio/github-actions/apprentice-action@master   
