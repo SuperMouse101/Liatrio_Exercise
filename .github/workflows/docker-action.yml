@@ -1,0 +1,93 @@
+name: docker-action
+on: 
+    pull_request:
+        branches:
+            - main
+    push:
+        branches:
+            - main
+jobs: 
+  build-docker-image:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Building Docker Image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: web_app:check
+        load: true
+
+    - name: Run container on port 80
+      run: |
+        docker rm -f app 2>/dev/null || true
+        docker run -d --name app -p 80:80 web_app:check
+
+    - name: Wait for app to be ready on port 80
+      run: |
+        for i in {1..60}; do
+          if curl -fsS http://localhost:80/ >/dev/null; then
+            echo "App is up"; exit 0
+          fi
+          sleep 1
+        done
+        echo "App did not become ready in time" >&2
+        docker logs app || true
+        exit 1
+
+    - name: Run Tests
+      uses: liatrio/github-actions/apprentice-action@0b41561cca6822cc8d880fe0e49e7807a41fdf91
+    
+  push-docker-image:
+    runs-on: ubuntu-latest
+    needs: build-docker-image
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Logging Into Dockerhub
+      uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extracting Docker Metadata
+      id: meta
+      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+      with:
+        images: supermouse101/liatrio-exercise
+        tags: |
+            type=semver,pattern={{version}}
+            type=sha,format=short
+
+    - name: Push to Dockerhub
+      id: push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        provenance: false
+
+    - name: Generate artifact attestation
+      uses: actions/attest-build-provenance@v3
+      with:
+        subject-name: index.docker.io/supermouse101/liatrio-exercise
+        subject-digest: ${{ steps.push.outputs.digest }}
+        push-to-registry: true
